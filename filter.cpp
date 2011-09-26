@@ -1,12 +1,40 @@
 #include "filter.hpp"
-
+#include <iostream>
 using namespace cv;
 
 BilinearFilter::BilinearFilter(int size, double sigma1, double sigma2)
 {
-  kernel_size = size;
-  kernel_xy = getGaussianKernel(2*size+1, sigma1);
-  r_sigma = sigma2;
+  kernel_size = size;  
+  r_sigma = sigma2; //What's this? In relation to other sigma?
+  int t = 2;
+  t_range = t+1;
+    
+  create3DBilenearKernel(sigma1);
+}
+
+void BilinearFilter::create3DBilenearKernel(double sigma1) {
+
+  //Creates a 3D Matrix MatND, but can be treated as Mat.
+  //Dimensions are 2k+1 by 2k+1 by 3. Uses 2 previous images for comparison                                                                                                                               
+  //Can increase later. Max size seems to be 16. 
+  int dims[] = { 2*kernel_size+1, 2*kernel_size+1, t_range+1};
+  threeDMat= MatND(3,dims,CV_32F);
+  
+  double scale_factor = sigma1/t_range;
+  
+  //For each time value of T, create a gaussian and copy it into the 3D matrix t while scaling
+  //down sigma.
+  for(int t = 0; t < t_range; t++) {
+    kernel_xy = getGaussianKernel(2*kernel_size+1, sigma1 - t*scale_factor);
+
+    //Copying over elements from Gaussian Kernel to the new matrix at index t
+    for(int i = 0; i < 2*kernel_size+1; i++) {
+      for(int j = 0; j < 2*kernel_size+1; j++) {
+        threeDMat.at<double>(j,i,t) = kernel_xy.at<double>(j,i);
+      }
+    }
+  }
+
 }
 
 // Right now, SSD over the given channels.
@@ -41,7 +69,8 @@ Mat BilinearFilter::update(const Mat& rgb, const Mat& depth)
           //printf("Calculating kernel offset %d, %d.\n", k, l);
           if(b_depth.at<unsigned short>(i+k, j+l) == 0)
             continue;
-          double w_d = kernel_xy.at<double>(kernel_size+k, kernel_size+l);
+          double w_d = threeDMat.at<double>(kernel_size+k, kernel_size+l, 0); //Using new Kernel with now t=0 No prev buffer
+          //double w_d = kernel_xy.at<double>(kernel_size+k, kernel_size+l); //Old Kernel
           Vec3b pix2 = b_rgb.at<Vec3b>(i+k, j+l);
           double w_r = std::exp(-find_distance(pix1, pix2)/(2*r_sigma*r_sigma));
           double w = w_d*w_r;

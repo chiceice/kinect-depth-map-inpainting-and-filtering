@@ -12,12 +12,16 @@ private:
   // Gaussian convolution kernel.
   Mat kernel_xy;
   int kernel_size;
+  Mat threeDMat;
   
   // parameter for how much pixel similarity affects filter.
   double r_sigma;
   double find_distance(Vec3b color1, Vec3b color2);
   
+  int t_range;
+  
 public:
   BilinearFilter(int size, double sigma, double alpha);
   Mat update(const Mat& rgb, const Mat& depth);
+  void create3DBilenearKernel(double);
 };
