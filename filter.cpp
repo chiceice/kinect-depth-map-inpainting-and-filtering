@@ -2,12 +2,11 @@
 #include <iostream>
 using namespace cv;
 
-BilinearFilter::BilinearFilter(int size, double sigma1, double sigma2)
+BilinearFilter::BilinearFilter(int size, double sigma1, double sigma2, int t_levels)
 {
   kernel_size = size;  
   r_sigma = sigma2; //What's this? In relation to other sigma?
-  int t = 2;
-  t_range = t+1;
+  t_range = t_levels+1;
     
   create3DBilenearKernel(sigma1);
 }
@@ -46,13 +45,14 @@ double BilinearFilter::find_distance(Vec3b color1, Vec3b color2)
   return acc;
 }
 
-Mat BilinearFilter::update(const Mat& rgb, const Mat& depth)
+//To Do: Add functionality for previous frames.
+Mat BilinearFilter::update(const Mat& rgb, const Mat& depth, deque<Mat>& previous_frames)
 {
   Mat b_rgb;
   Mat b_depth;
     
   Mat out(depth.size(), depth.type());
-  
+    
   copyMakeBorder(rgb, b_rgb, kernel_size, kernel_size, kernel_size, kernel_size, BORDER_REFLECT);
   
   copyMakeBorder(depth, b_depth, kernel_size, kernel_size, kernel_size, kernel_size, BORDER_REFLECT);

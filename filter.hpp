@@ -4,6 +4,10 @@
 
 #include <math.h>
 
+#include <deque>
+#include <utility>
+#include <vector>
+
 using namespace cv;
 using namespace std;
 class BilinearFilter
@@ -21,7 +25,7 @@ private:
   int t_range;
   
 public:
-  BilinearFilter(int size, double sigma, double alpha);
-  Mat update(const Mat& rgb, const Mat& depth);
+  BilinearFilter(int size, double sigma, double alpha, int t_levels);
+  Mat update(const Mat& rgb, const Mat& depth, deque<Mat >& previous_frames);
   void create3DBilenearKernel(double);
 };

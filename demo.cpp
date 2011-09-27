@@ -4,6 +4,9 @@
 #include "filter.hpp"
 #include <opencv2/core/core.hpp>
 
+#include <utility>
+#include <deque>
+
 void help()
 {
   printf("Demonstrates playback capabilities. To use, type:\n"
@@ -44,11 +47,29 @@ int main(int argc, char* argv[])
     return -1;
   }
   
+  int prev_frame_num = 2;
+  
   // Playback object should now be open.
-  BilinearFilter filter = BilinearFilter(3, 1.5, 1);
+  BilinearFilter filter = BilinearFilter(3, 1.5, 1, 2);
   printf("Filter initalized.\n");
+  
+  //Using Deque to act as queue. Add new frames on front, pop old from back. deque = {newest, ... ,older}
+  deque<Mat> previous_frames = deque<Mat>();
+  
   while (playback.update() && waitKey(1) != 27) {    
-    Mat filtered_depth = filter.update(playback.rgb, playback.depth);
+    //Passing Previous frame buffer
+    Mat filtered_depth = filter.update(playback.rgb, playback.depth, previous_frames);
+
+    //If Previous frames aren't fully loaded then just keep adding and don't replace.
+    if(previous_frames.size() >= prev_frame_num*2) {
+      previous_frames.pop_back();
+      previous_frames.pop_back();
+    }
+    
+    //Add newest frames to front of stack.
+    previous_frames.push_front(playback.rgb);
+    previous_frames.push_front(playback.depth);
+    
     Mat out_img, filtered_out_img;
     visualize(filtered_depth, filtered_out_img);
     visualize(playback.depth, out_img);
