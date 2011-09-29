@@ -11,43 +11,43 @@ using namespace cv;
 
 void visualize(const Mat& depth, Mat& out_img)
 {
-  out_img = Mat(depth.rows, depth.cols, CV_8UC1);
-  
+  out_img = Mat(depth.rows, depth.cols, CV_16UC1);
+
   // Create histogram
   Mat Hist(256*256, 1, CV_64FC1, Scalar::all(0));
-  
+
   MatConstIterator_<unsigned short> i_it = depth.begin<unsigned short>();
-  
+
   double total = 0;
-  
+
   for (; i_it != depth.end<unsigned short>(); i_it++)
     if(*i_it != 0)
     {
       (Hist.at<double>(*i_it))++;
       total ++;
     }
-  
+
   // Accumulate and normalize histogram.
   double acc = 0;
-  
+
   for (int i = 0; i < 256*256; i++) {
     acc += Hist.at<double>(i);
     Hist.at<double>(i) = acc;
   }
-    
+
   Hist = Hist / (total);
-  
+
   i_it = depth.begin<unsigned short>();
-  MatIterator_<uchar> o_it = out_img.begin<uchar>();
-  
+  MatIterator_<unsigned short int> o_it = out_img.begin<unsigned short int>();
+
   // Perform lookup, and write output to the out image.
   for(; i_it != depth.end<unsigned short>(); i_it++, o_it++)
   {
     if (*i_it == 0)
       *o_it = 0;
     else
-      *o_it = 255 * (1 - Hist.at<double>(*i_it));
+      *o_it = 65536 * (1 - Hist.at<double>(*i_it));
   }
-  
+
   // All done!
 }

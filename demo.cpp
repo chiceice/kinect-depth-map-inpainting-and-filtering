@@ -2,6 +2,7 @@
 #include "playback.hpp"
 #include "visualize.hpp"
 #include "filter.hpp"
+#include "our_fmm.hpp"
 #include <opencv2/core/core.hpp>
 
 #include <utility>
@@ -31,7 +32,7 @@ int main(int argc, char* argv[])
     help();
     return -1;
   }
-  
+
   if(argv[1][0] == '-')
   {
     switch (argv[1][1]) {
@@ -53,7 +54,7 @@ int main(int argc, char* argv[])
     help();
     return -1;
   }
-  
+
   int prev_frame_num = 2;
   //Init filter
   BilinearFilter filter = BilinearFilter(SIZEXY, SIZET, SIGMAXY, SIGMAT, SIGMAC, SIGMAD);
@@ -61,25 +62,25 @@ int main(int argc, char* argv[])
     playback.update();
     filter.update(playback.rgb, playback.depth);
   }
-  
+
   printf("Filter initalized.\n");
-  
-  
+
+
   while (playback.update() && waitKey(1) != 27) {
     //Passing Previous frame buffer
     printf("Filtering...\n");
     Mat filtered_depth = filter.update(playback.rgb, playback.depth);
-    
+
     printf("Visualizing...\n");
     Mat out_img, filtered_out_img;
     visualize(filtered_depth, filtered_out_img);
     visualize(playback.depth, out_img);
-    
+
     printf("Inpainting...\n");
     Mat invalid_mask = (out_img == 0);
     Mat inpainted_depth;
-    inpaint(out_img, invalid_mask, inpainted_depth, 5, INPAINT_TELEA);
-    
+    inpaint(out_img, invalid_mask, inpainted_depth, 5);
+
     printf("Done...\n");
     imshow("rgb", playback.rgb);
     imshow("depth", out_img);
