@@ -7,6 +7,13 @@
 #include <utility>
 #include <deque>
 
+#define SIZEXY 1
+#define SIZET  1
+#define SIGMAXY 1
+#define SIGMAT  1
+#define SIGMAC  30
+#define SIGMAD  30
+
 void help()
 {
   printf("Demonstrates playback capabilities. To use, type:\n"
@@ -48,36 +55,32 @@ int main(int argc, char* argv[])
   }
   
   int prev_frame_num = 2;
+  //Init filter
+  BilinearFilter filter = BilinearFilter(SIZEXY, SIZET, SIGMAXY, SIGMAT, SIGMAC, SIGMAD);
+  for (int i = 0; i < SIZET; i++) {
+    playback.update();
+    filter.update(playback.rgb, playback.depth);
+  }
   
-  // Playback object should now be open.
-  BilinearFilter filter = BilinearFilter(3, 1.5, 1, 2);
   printf("Filter initalized.\n");
   
-  //Using Deque to act as queue. Add new frames on front, pop old from back. deque = {newest, ... ,older}
-  deque<Mat> previous_frames = deque<Mat>();
   
-  while (playback.update() && waitKey(1) != 27) {    
+  while (playback.update() && waitKey(1) != 27) {
     //Passing Previous frame buffer
-    Mat filtered_depth = filter.update(playback.rgb, playback.depth, previous_frames);
-
-    //If Previous frames aren't fully loaded then just keep adding and don't replace.
-    if(previous_frames.size() >= prev_frame_num*2) {
-      previous_frames.pop_back();
-      previous_frames.pop_back();
-    }
+    printf("Filtering...\n");
+    Mat filtered_depth = filter.update(playback.rgb, playback.depth);
     
-    //Add newest frames to front of stack.
-    previous_frames.push_front(playback.rgb);
-    previous_frames.push_front(playback.depth);
-    
+    printf("Visualizing...\n");
     Mat out_img, filtered_out_img;
     visualize(filtered_depth, filtered_out_img);
     visualize(playback.depth, out_img);
     
+    printf("Inpainting...\n");
     Mat invalid_mask = (out_img == 0);
     Mat inpainted_depth;
     inpaint(out_img, invalid_mask, inpainted_depth, 5, INPAINT_TELEA);
     
+    printf("Done...\n");
     imshow("rgb", playback.rgb);
     imshow("depth", out_img);
     imshow("filtered", filtered_out_img);

@@ -3,6 +3,7 @@
 #include <opencv2/highgui/highgui.hpp>
 
 #include <math.h>
+#include <boost/math/distributions/normal.hpp>
 
 #include <deque>
 #include <utility>
@@ -13,19 +14,36 @@ using namespace std;
 class BilinearFilter
 {
 private:
-  // Gaussian convolution kernel.
-  Mat kernel_xy;
-  int kernel_size;
-  Mat threeDMat;
+  // Parameters
+  int size_xy;
+  int size_t;
+  // kernel size = (t+1)x(2*xy+1)x(2*xy+1)
+  // so 0,0 would look only at current pixel.
   
-  // parameter for how much pixel similarity affects filter.
-  double r_sigma;
+  // For creating the gaussian convolution kernels.
+  double sigma_xy; // in space
+  double sigma_t;  // in time
+  double sigma_d;  // in depth (label)
+  double sigma_c;  // in color
+  
+  // 3d matricees for rgb, depth, and kernel
+  Mat depth_buf;
+  Mat rgb_buf;
+  Mat kernel;
+  
   double find_distance(Vec3b color1, Vec3b color2);
+  double find_distance(unsigned short depth1, unsigned short depth2);
   
-  int t_range;
+  void createKernel();
+  unsigned short applyKernel(int i, int j);
+  
+  void initBuffers(const Mat& rgb, const Mat& depth);
+  void updateBuffers(const Mat& rgb, const Mat& depth);
   
 public:
-  BilinearFilter(int size, double sigma, double alpha, int t_levels);
-  Mat update(const Mat& rgb, const Mat& depth, deque<Mat >& previous_frames);
-  void create3DBilenearKernel(double);
+  // Create bilinear filter.
+  BilinearFilter(int s_xy, int s_t, double sig_xy, double sig_t, double sig_d, double sig_c);
+  
+  // Update buffers and return filtered result.
+  Mat update(const Mat& rgb, const Mat& depth);
 };

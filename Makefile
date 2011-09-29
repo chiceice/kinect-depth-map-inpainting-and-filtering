@@ -1,5 +1,5 @@
 CXX := g++ -w
-INCLUDES := -I. -I/usr/include/ni -I/usr/local/include
+INCLUDES := -I. -I/usr/include/ni -I/usr/local/include -I/opt/local/include
 
 all:  demo record convert.o playback.o visualize.o
 

@@ -118,40 +118,16 @@ void KinectPlayback::init(const char* node_filename)
 bool KinectPlayback::update()
 {
   XnStatus nRetVal = XN_STATUS_OK;
-  if(mode == DEVICE)
-  {
-    nRetVal = ni_context.WaitAndUpdateAll();
-    if (nRetVal != XN_STATUS_OK) {
-      printf("Failed updating data: %s\n", xnGetStatusString(nRetVal));
-      return false;
-    }
-    const XnDepthPixel* pDepthMap = g_depth.GetDepthMap();
-    const XnRGB24Pixel* pImageMap = g_image.GetRGB24ImageMap();
-    convert_pixel_map(pDepthMap, depth, rows, cols);
-    convert_pixel_map(pImageMap, rgb, rows, cols);
-    return true;
-  }
-  if (mode == NODE) {
-    nRetVal = g_depth.WaitAndUpdateData();
-    if (nRetVal != XN_STATUS_OK) {
-      printf("Failed updating depth: %s\n", xnGetStatusString(nRetVal));
-      return false;
-    }
-    nRetVal = g_image.WaitAndUpdateData();
-    if (nRetVal != XN_STATUS_OK) {
-      printf("Failed updating image: %s\n", xnGetStatusString(nRetVal));
-      return false;
-    }
-    
-    const XnDepthPixel* pDepthMap = g_depth.GetDepthMap();
-    const XnRGB24Pixel* pImageMap = g_image.GetRGB24ImageMap();
-    convert_pixel_map(pDepthMap, depth, rows, cols);
-    convert_pixel_map(pImageMap, rgb, rows, cols);
-    return true;
-  }
-  
-  else // mode==VIDEO
-  {
+  nRetVal = ni_context.WaitAndUpdateAll();
+  if (nRetVal != XN_STATUS_OK) {
+    printf("Failed updating playback: %s\n", xnGetStatusString(nRetVal));
     return false;
   }
+    
+  const XnDepthPixel* pDepthMap = g_depth.GetDepthMap();
+  const XnRGB24Pixel* pImageMap = g_image.GetRGB24ImageMap();
+  convert_depth_map(pDepthMap, depth, rows, cols);
+  convert_rgb_map(pImageMap, rgb, rows, cols);
+
+  return true;
 }

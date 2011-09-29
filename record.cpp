@@ -63,8 +63,8 @@ int main(int argc, char * argv[])
     const XnRGB24Pixel* pImageMap = color.GetRGB24ImageMap();
     Mat cv_depth;
     Mat cv_image;
-    convert_pixel_map(pDepthMap, cv_depth, XN_VGA_Y_RES, XN_VGA_X_RES);
-    convert_pixel_map(pImageMap, cv_image, XN_VGA_Y_RES, XN_VGA_X_RES);
+    convert_depth_map(pDepthMap, cv_depth, XN_VGA_Y_RES, XN_VGA_X_RES);
+    convert_rgb_map(pImageMap, cv_image, XN_VGA_Y_RES, XN_VGA_X_RES);
     imshow("depth", cv_depth);
     imshow("image", cv_image);
   }
