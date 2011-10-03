@@ -1,4 +1,3 @@
-
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/imgproc/imgproc_c.h"
 #include "opencv2/core/internal.hpp"
@@ -30,10 +29,10 @@ min4( float a, float b, float c, float d )
 
 typedef struct CvHeapElem
 {
-    float T;
-    int i,j;
-    struct CvHeapElem* prev;
-    struct CvHeapElem* next;
+  float T;                 // Metric for inpaint ordering.
+  int i,j;                 // Coordinate of pixel.
+  struct CvHeapElem* prev; // previous heap element.
+  struct CvHeapElem* next; // next heap element.
 }
 CvHeapElem;
 

@@ -32,7 +32,7 @@ void BilinearFilter::createKernel()
   Mat gauss_t = getGaussianKernel(2*size_t+1, sigma_t, CV_64F); // We will only access half of this one.
 
   // Now, fill the matrix with the product of these three gaussians.
-  double sum = 0;
+  double total = 0;
   for (int t = 0; t < size_t + 1; t++)
     for (int i = 0; i < 2*size_xy + 1; i++)
       for (int j = 0; j < 2*size_xy + 1; j++)
@@ -43,11 +43,11 @@ void BilinearFilter::createKernel()
 
         kernel.at<double>(t, i, j) = value;
 
-        sum += value;
+        total += value;
       }
 
   // Finally, make sure the kernel sums to one!
-  kernel = kernel/sum;
+  kernel = kernel/total;
 }
 
 // Apply the kernel to the (updated) buffer at position i,j
@@ -81,28 +81,86 @@ unsigned short BilinearFilter::applyKernel(int i, int j)
       for (int j = 0; j < 2*size_xy + 1; j++) {
         // Retreive the domain kernel.
         double weight_k = kernel.at<double>(t,i,j);
-
         // Compute the range kernel.
         // Color
         Vec3b pix_color = neighbors_rgb.at<Vec3b>(t, i, j);
         double color_distance = find_distance(center_color, pix_color);
-        double weight_c = cdf(dist_color, color_distance) - .5;
+        double weight_c = pdf(dist_color, color_distance);
 
         // Depth
         unsigned short pix_depth = neighbors_depth.at<unsigned short>(t, i, j);
         double depth_distance = find_distance(center_depth, pix_depth);
-        double weight_d = cdf(dist_color, depth_distance) - .5;
+        double weight_d = pdf(dist_depth, depth_distance);
 
         // Accumulate output and net_weight
         net_weight += weight_k * weight_c * weight_d;
         result += pix_depth * weight_k * weight_c * weight_d;
+        
+        //printf("Weights: %f %f %f\n", weight_k, weight_c, weight_d);
       }
   // Normalize result and convert to depth value.
   unsigned short out = (unsigned short)(result/net_weight);
+  //printf("Original depth: %d, Final depth: %d\n", center_depth, out);
   return out;
 }
 
 //---------------------------------BUFFERS-----------------------------------//
+// Perform a copy of elements from m_from to m_to.
+void BilinearFilter::copyTo(const Mat& m_from, Mat& m_to)
+{
+  if (m_from.total() != m_to.total() || m_from.type() != m_to.type()) {
+    printf("Error - CopyTo: matrices do not match.\n");
+    exit(1);
+  }
+  
+  if(m_from.type() == CV_8UC3)
+  {
+    MatConstIterator_<Vec3b> from_it = m_from.begin<Vec3b>();
+    MatIterator_<Vec3b> to_it = m_to.begin<Vec3b>();
+    for (; from_it != m_from.end<Vec3b>(); from_it++, to_it++)
+      *to_it = *from_it;
+    return;
+  }
+
+  if(m_from.type() == CV_8UC1)
+  {
+    MatConstIterator_<uchar> from_it = m_from.begin<uchar>();
+    MatIterator_<uchar> to_it = m_to.begin<uchar>();
+    for (; from_it != m_from.end<uchar>(); from_it++, to_it++)
+      *to_it = *from_it;
+    return;
+  }
+  
+  if(m_from.type() == CV_16UC1)
+  {
+    MatConstIterator_<unsigned short> from_it = m_from.begin<unsigned short>();
+    MatIterator_<unsigned short> to_it = m_to.begin<unsigned short>();
+    for (; from_it != m_from.end<unsigned short>(); from_it++, to_it++)
+      *to_it = *from_it;
+    return;
+  }
+  
+  if(m_from.type() == CV_32FC1)
+  {
+    MatConstIterator_<float> from_it = m_from.begin<float>();
+    MatIterator_<float> to_it = m_to.begin<float>();
+    for (; from_it != m_from.end<float>(); from_it++, to_it++)
+      *to_it = *from_it;
+    return;
+  }
+  
+  if(m_from.type() == CV_64FC1)
+  {
+    MatConstIterator_<double> from_it = m_from.begin<double>();
+    MatIterator_<double> to_it = m_to.begin<double>();
+    for (; from_it != m_from.end<double>(); from_it++, to_it++)
+      *to_it = *from_it;
+    return;
+  }
+  
+  printf("Error - CopyTo: this matrix type is not supported.\n");
+  exit(1);
+}
 
 // Init padded buffers for the rgb and depth video.
 void BilinearFilter::initBuffers(const Mat& rgb, const Mat& depth)
@@ -128,10 +186,10 @@ void BilinearFilter::updateBuffers(const Mat& rgb, const Mat& depth)
   Mat temp_depth = depth_buf(rangesfrom).clone();
 
   Range rangesto[] = {Range(1, size_t+1), Range::all(), Range::all()};
-  Mat rgb_to = rgb_buf(rangesto);
-  temp_rgb.copyTo(rgb_to);
-  Mat depth_to = depth_buf(rangesto);
-  temp_depth.copyTo(depth_to);
+  Mat rgb_to(rgb_buf(rangesto));
+  copyTo(temp_rgb, rgb_to);
+  Mat depth_to(depth_buf(rangesto));
+  copyTo(temp_depth, depth_to);
 
   // Now, pad the new frame with copymakeborder.
   Mat rgb_border, depth_border;
@@ -143,9 +201,13 @@ void BilinearFilter::updateBuffers(const Mat& rgb, const Mat& depth)
   // Finally, copy the new frame into the buffer.
   Range rangesupdate[] = {Range(0,1), Range::all(), Range::all()};
   rgb_to = rgb_buf(rangesupdate);
-  rgb_border.copyTo(rgb_to);
+  copyTo(rgb_border, rgb_to);
+  
   depth_to = depth_buf(rangesupdate);
-  depth_border.copyTo(depth_to);
+  if(depth_to.type() == depth_buf.type())
+    printf("types match\n");
+  copyTo(depth_border, depth_to);
+  
 }
 
 // Right now, SSD over the given channels.
@@ -154,7 +216,7 @@ double BilinearFilter::find_distance(Vec3b color1, Vec3b color2)
   double acc = 0;
   for (int i = 0; i < 3; i++)
     acc += (color1[i]-color2[i])*(color1[i]-color2[i]);
-  return acc;
+  return sqrt(acc);
 }
 
 double BilinearFilter::find_distance(unsigned short depth1, unsigned short depth2)

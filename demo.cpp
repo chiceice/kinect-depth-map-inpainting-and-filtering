@@ -6,14 +6,13 @@
 #include <opencv2/core/core.hpp>
 
 #include <utility>
-#include <deque>
 
-#define SIZEXY 1
+#define SIZEXY 4
 #define SIZET  1
-#define SIGMAXY 1
+#define SIGMAXY 3
 #define SIGMAT  1
-#define SIGMAC  30
-#define SIGMAD  30
+#define SIGMAC  50
+#define SIGMAD  50000
 
 void help()
 {
@@ -60,7 +59,10 @@ int main(int argc, char* argv[])
   BilinearFilter filter = BilinearFilter(SIZEXY, SIZET, SIGMAXY, SIGMAT, SIGMAC, SIGMAD);
   for (int i = 0; i < SIZET; i++) {
     playback.update();
-    filter.update(playback.rgb, playback.depth);
+    Mat inpainted_depth;
+    Mat invalid_mask = (playback.depth == 0);
+    inpaint(playback.depth, invalid_mask, inpainted_depth, 5);
+    filter.update(playback.rgb, inpainted_depth);
   }
 
   printf("Filter initalized.\n");
@@ -68,24 +70,25 @@ int main(int argc, char* argv[])
 
   while (playback.update() && waitKey(1) != 27) {
     //Passing Previous frame buffer
+    printf("Inpainting...\n");
+    Mat inpainted_depth;
+    Mat invalid_mask = (playback.depth == 0);
+    inpaint(playback.depth, invalid_mask, inpainted_depth, 5);
     printf("Filtering...\n");
-    Mat filtered_depth = filter.update(playback.rgb, playback.depth);
+    Mat filtered_depth = filter.update(playback.rgb, inpainted_depth);
 
     printf("Visualizing...\n");
-    Mat out_img, filtered_out_img;
-    visualize(filtered_depth, filtered_out_img);
+    Mat out_img, inpainted_out_img, filtered_out_img;
+
     visualize(playback.depth, out_img);
-
-    printf("Inpainting...\n");
-    Mat invalid_mask = (out_img == 0);
-    Mat inpainted_depth;
-    inpaint(out_img, invalid_mask, inpainted_depth, 5);
-
+    visualize(inpainted_depth, inpainted_out_img);
+    visualize(filtered_depth, filtered_out_img);
+    
     printf("Done...\n");
     imshow("rgb", playback.rgb);
     imshow("depth", out_img);
+    imshow("inpaint", inpainted_out_img);
     imshow("filtered", filtered_out_img);
-    imshow("inpaint", inpainted_depth);
   }
   return 1;
 }

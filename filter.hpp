@@ -37,6 +37,7 @@ private:
   void createKernel();
   unsigned short applyKernel(int i, int j);
   
+  void copyTo(const Mat& m_from, Mat& m_to);
   void initBuffers(const Mat& rgb, const Mat& depth);
   void updateBuffers(const Mat& rgb, const Mat& depth);
   
