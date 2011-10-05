@@ -17,6 +17,17 @@ BilinearFilter::BilinearFilter(int s_xy, int s_t, double sig_xy, double sig_t, d
   sigma_d = sig_d;  // in depth (label)
   sigma_c = sig_c;  // in color
 
+  // Create distros.
+  if (sigma_c != 0)
+    dist_color = normal(0,sigma_c);
+  else
+    dist_color = normal(0,1); // dummy value.
+  
+  if (sigma_d != 0)
+    dist_depth = normal(0,sigma_d);
+  else
+    dist_depth = normal(0,1); // dummy value.
+
   createKernel();
 }
 
@@ -60,20 +71,16 @@ unsigned short BilinearFilter::applyKernel(int i, int j)
                     Range(i, i + 2*size_xy + 1),  // x
                     Range(j, j + 2*size_xy + 1)};  // y
 
-  Mat neighbors_rgb = rgb_buf(ranges).clone();
-  Mat neighbors_depth = depth_buf(ranges).clone();
+  Mat neighbors_rgb = rgb_buf(ranges);
+  Mat neighbors_depth = depth_buf(ranges);
 
   // Init net loop.
   double net_weight = 0;
   double result = 0;
 
   // Get center pixel color and depth.
-  Vec3b center_color = neighbors_rgb.at<Vec3b>(0, size_xy + 1, size_xy + 1);
-  unsigned short center_depth = neighbors_depth.at<unsigned short>(0, size_xy + 1, size_xy + 1);
-
-  // Set up color and depth probability distributions.
-  normal dist_color(0, sigma_c);
-  normal dist_depth(0, sigma_d);
+  Vec3b center_color = neighbors_rgb.at<Vec3b>(0, size_xy, size_xy);
+  unsigned short center_depth = neighbors_depth.at<unsigned short>(0, size_xy , size_xy);
 
   // Iterate over the neighborhood
   for (int t = 0; t < size_t+1; t++)
@@ -83,18 +90,25 @@ unsigned short BilinearFilter::applyKernel(int i, int j)
         double weight_k = kernel.at<double>(t,i,j);
         // Compute the range kernel.
         // Color
-        Vec3b pix_color = neighbors_rgb.at<Vec3b>(t, i, j);
-        double color_distance = find_distance(center_color, pix_color);
-        double weight_c = pdf(dist_color, color_distance);
+        double weight_c;
+        if (sigma_c != 0) {
+          Vec3b pix_color = neighbors_rgb.at<Vec3b>(t, i, j);
+          double color_distance = find_distance(center_color, pix_color);
+          weight_c = 2*(1-cdf(dist_color, color_distance));
+        }
 
         // Depth
+        double weight_d = 1;
         unsigned short pix_depth = neighbors_depth.at<unsigned short>(t, i, j);
-        double depth_distance = find_distance(center_depth, pix_depth);
-        double weight_d = pdf(dist_depth, depth_distance);
+        if(sigma_d != 0)
+        {
+          double depth_distance = find_distance(center_depth, pix_depth);
+          weight_d = 2*(1-cdf(dist_depth, depth_distance));
+        }
 
         // Accumulate output and net_weight
         net_weight += weight_k * weight_c * weight_d;
-        result += pix_depth * weight_k * weight_c * weight_d;
+        result += (double)pix_depth * weight_k * weight_c * weight_d;
         
         //printf("Weights: %f %f %f\n", weight_k, weight_c, weight_d);
       }
@@ -180,17 +194,19 @@ void BilinearFilter::initBuffers(const Mat& rgb, const Mat& depth)
 // update the buffers with the current frame.
 void BilinearFilter::updateBuffers(const Mat& rgb, const Mat& depth)
 {
-  // First, shift the buffers back to open up space for new frame.
-  Range rangesfrom[] = {Range(0, size_t), Range::all(), Range::all()};
-  Mat temp_rgb = rgb_buf(rangesfrom).clone();
-  Mat temp_depth = depth_buf(rangesfrom).clone();
+  Mat rgb_to, depth_to;
+  if (size_t != 0) {
+    // First, shift the buffers back to open up space for new frame.
+    Range rangesfrom[] = {Range(0, size_t), Range::all(), Range::all()};
+    Mat temp_rgb = rgb_buf(rangesfrom).clone();
+    Mat temp_depth = depth_buf(rangesfrom).clone();
 
-  Range rangesto[] = {Range(1, size_t+1), Range::all(), Range::all()};
-  Mat rgb_to(rgb_buf(rangesto));
-  copyTo(temp_rgb, rgb_to);
-  Mat depth_to(depth_buf(rangesto));
-  copyTo(temp_depth, depth_to);
-
+    Range rangesto[] = {Range(1, size_t+1), Range::all(), Range::all()};
+    rgb_to = Mat(rgb_buf(rangesto));
+    copyTo(temp_rgb, rgb_to);
+    depth_to = Mat(depth_buf(rangesto));
+    copyTo(temp_depth, depth_to);
+  }
   // Now, pad the new frame with copymakeborder.
   Mat rgb_border, depth_border;
   copyMakeBorder(rgb, rgb_border, size_xy, size_xy, size_xy,
@@ -215,7 +231,7 @@ double BilinearFilter::find_distance(Vec3b color1, Vec3b color2)
 {
   double acc = 0;
   for (int i = 0; i < 3; i++)
-    acc += (color1[i]-color2[i])*(color1[i]-color2[i]);
+    acc += ((double)color1[i]-(double)color2[i])*((double)color1[i]-(double)color2[i]);
   return sqrt(acc);
 }
 
@@ -245,3 +261,104 @@ Mat BilinearFilter::update(const Mat& rgb, const Mat& depth)
 
   return out;
 }
+
+
+
+
+
+
+
+
+//------------------------------Median Filter--------------------------------//
+// Right now, SSD over the given channels.
+double MedianFilter::find_distance(Vec3b color1, Vec3b color2)
+{
+  double acc = 0;
+  for (int i = 0; i < 3; i++)
+    acc += ((double)color1[i]-(double)color2[i])*((double)color1[i]-(double)color2[i]);
+  return sqrt(acc);
+}
+  
+MedianFilter::MedianFilter(int s_xy, double r_thresh)
+{
+  size_xy = s_xy;
+  rejection_thresh = r_thresh;
+}
+
+unsigned short MedianFilter::applyMedian(const Mat& rgb_patch, const Mat& depth_patch)
+{
+  Vec3b centerColor = rgb_patch.at<Vec3b>(size_xy, size_xy);
+  //unsigned short centerDepth = depth_patch.at<unsigned short>(size_xy, size_xy);
+  
+  int numtokeep = (int)(rgb_patch.total()*rejection_thresh);
+  
+  // Compute color space distances.
+  Mat distances(1,rgb_patch.rows*rgb_patch.cols, CV_64F, Scalar::all(0));
+  Mat indexes;
+  MatConstIterator_<Vec3b> in_it = rgb_patch.begin<Vec3b>();
+  MatIterator_<double> out_it = distances.begin<double>();
+  
+  for(;in_it != rgb_patch.end<Vec3b>(); in_it++, out_it++)
+  {
+    *out_it = find_distance(*in_it, centerColor);
+  }
+  
+  // Sort indexes in ascending order.
+  sortIdx(distances, indexes, CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
+  
+  Mat depths(1, numtokeep, CV_16UC1, Scalar::all(0));
+
+  MatIterator_<int> i_it = indexes.begin<int>();
+  MatIterator_<unsigned short> d_it = depths.begin<unsigned short>();
+  
+  // Retreive the relevant depths.
+  for (; d_it != depths.end<unsigned short>(); i_it++, d_it++)
+  {
+    int c =  *i_it%depth_patch.cols;
+    int r = (*i_it-c)/depth_patch.cols;
+    *d_it = depth_patch.at<unsigned short>(r, c);
+  }
+  // Sort the relevant depths.
+  sortIdx(depths, indexes, CV_SORT_EVERY_ROW + CV_SORT_ASCENDING);
+
+  return depths.at<unsigned short>(indexes.at<int>(numtokeep/2));
+}
+
+Mat MedianFilter::update(const Mat& rgb, const Mat& depth)
+{
+  Mat out = depth.clone();
+  Mat rgb_border, depth_border;
+  
+  copyMakeBorder(rgb, rgb_border, size_xy, size_xy, size_xy,
+                 size_xy, BORDER_REFLECT);
+  
+  copyMakeBorder(depth, depth_border, size_xy, size_xy, size_xy, size_xy, BORDER_REFLECT);
+  
+  for (int i = 0; i < rgb.rows; i++) {
+    for (int j = 0; j < rgb.cols; j++) {
+      out.at<unsigned short>(i,j) = applyMedian(rgb_border(Range(i, i+2*size_xy+1), 
+                                                           Range(j, j+2*size_xy+1)), 
+                                                depth_border(Range(i, i+2*size_xy+1), 
+                                                             Range(j, j+2*size_xy+1)));
+    }
+  }
+  
+  printf("out size: %d, %d.\n", out.rows, out.cols);
+  
+  return out;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

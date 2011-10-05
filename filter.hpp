@@ -11,6 +11,8 @@
 
 using namespace cv;
 using namespace std;
+using boost::math::normal;
+
 class BilinearFilter
 {
 private:
@@ -25,6 +27,9 @@ private:
   double sigma_t;  // in time
   double sigma_d;  // in depth (label)
   double sigma_c;  // in color
+  
+  normal dist_color;
+  normal dist_depth;
   
   // 3d matricees for rgb, depth, and kernel
   Mat depth_buf;
@@ -46,5 +51,19 @@ public:
   BilinearFilter(int s_xy, int s_t, double sig_xy, double sig_t, double sig_d, double sig_c);
   
   // Update buffers and return filtered result.
+  Mat update(const Mat& rgb, const Mat& depth);
+};
+
+class MedianFilter
+{
+private:
+  int size_xy;
+  double rejection_thresh;
+  
+  double find_distance(Vec3b color1, Vec3b color2);
+  unsigned short applyMedian(const Mat& rgb_patch, const Mat& depth_patch);
+
+public:
+  MedianFilter(int size_xy, double rejection_thresh);
   Mat update(const Mat& rgb, const Mat& depth);
 };
