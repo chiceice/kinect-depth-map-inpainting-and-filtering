@@ -7,12 +7,12 @@
 
 #include <utility>
 
-#define SIZEXY 4
-#define SIZET  1
-#define SIGMAXY 3
+#define SIZEXY 2
+#define SIZET  0
+#define SIGMAXY 15
 #define SIGMAT  1
-#define SIGMAC  50
-#define SIGMAD  50000
+#define SIGMAC  10
+#define SIGMAD  0
 
 void help()
 {
@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
 
   int prev_frame_num = 2;
   //Init filter
-  BilinearFilter filter = BilinearFilter(SIZEXY, SIZET, SIGMAXY, SIGMAT, SIGMAC, SIGMAD);
+  BilinearFilter filter = BilinearFilter(SIZEXY, SIZET, SIGMAXY, SIGMAT, SIGMAD, SIGMAC);
   for (int i = 0; i < SIZET; i++) {
     playback.update();
     Mat inpainted_depth;
@@ -67,7 +67,8 @@ int main(int argc, char* argv[])
 
   printf("Filter initalized.\n");
 
-
+  
+  //MedianFilter filter = MedianFilter(7, .3);
   while (playback.update() && waitKey(1) != 27) {
     //Passing Previous frame buffer
     printf("Inpainting...\n");
