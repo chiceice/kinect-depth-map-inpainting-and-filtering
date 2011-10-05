@@ -14,11 +14,24 @@
      ((mat).data.ptr + (size_t)(mat).step*(row) + (pix_size)*(col))
 
 inline float
-min4( float a, float b, float c, float d )
+min4( float a, float b, float c, float d, int* winner)
 {
+    int min=0;
+
     a = MIN(a,b);
     c = MIN(c,d);
-    return MIN(a,c);
+    min=MIN(a,c);
+
+    if(min==a)
+        *winner=1;
+    else if(min==b)
+        *winner=2;
+    else if (min==c)
+        *winner=3;
+    else
+        *winner=4;
+
+    return min;
 }
 
 #define CV_MAT_3COLOR_ELEM(img,type,y,x,c) CV_MAT_ELEM(img,type,y,(x)*3+(c))
@@ -91,6 +104,7 @@ public:
     bool Push(int i, int j, float T) {
         CvHeapElem *tmp=empty,*add=empty;
         if (empty==tail) return false;
+        //Start at bottom of heap, if previous T value is less than new T value, push up the heap
         while (tmp->prev->T>T) tmp = tmp->prev;
         if (tmp!=empty) {
             add->prev->next = add->next;
@@ -190,4 +204,4 @@ inline float VectorLength(CvPoint2D32f v1) {
 
 using namespace cv;
 
-void inpaint(InputArray _src, InputArray _mask, OutputArray _dst, double inpaintRange);
+void inpaint(InputArray _src, InputArray _mask, OutputArray _dst, double inpaintRange, float alpha);
