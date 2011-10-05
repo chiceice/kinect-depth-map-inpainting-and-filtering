@@ -81,26 +81,27 @@ int main(int argc, char* argv[])
   //MedianFilter filter = MedianFilter(7, .3);
   while (playback.update() && waitKey(1) != 27) {
     //Passing Previous frame buffer
-    printf("Inpainting...\n");
+    //printf("Inpainting...\n");
     Mat inpainted_depth;
     Mat invalid_mask = (playback.depth == 0);
-    inpaint(playback.depth, invalid_mask, inpainted_depth, 5, (float)ALPHA);
+    //inpaint(playback.depth, invalid_mask, inpainted_depth, 5, (float)ALPHA);
     printf("Filtering...\n");
-    Mat filtered_depth = filter.update(playback.rgb, inpainted_depth);
+    //Mat filtered_depth = filter.update(playback.rgb, inpainted_depth);
 
     printf("Visualizing...\n");
     Mat out_img, inpainted_out_img, filtered_out_img;
 
     visualize(playback.depth, out_img);
+    inpaint(out_img, invalid_mask, inpainted_depth, 5, INPAINT_TELEA); 
     visualize(inpainted_depth, inpainted_out_img);
-    visualize(filtered_depth, filtered_out_img);
+    //visualize(filtered_depth, filtered_out_img);
 
     printf("Done...\n");
     imshow("rgb", playback.rgb);
     imshow("depth", out_img);
-    imshow("inpaint", inpainted_out_img);
-    imshow("filtered", filtered_out_img);
-    
+    imshow("inpaint", inpainted_depth);
+    //imshow("filtered", filtered_out_img);
+    waitKey(0);
     if (writer.isOpened()) {
       writer << filtered_out_img;
     }
