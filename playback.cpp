@@ -131,3 +131,17 @@ bool KinectPlayback::update()
 
   return true;
 }
+
+// Get underlying parameters.
+int KinectPlayback::get_fps()
+{
+  return fps;
+}
+int KinectPlayback::get_width()
+{
+  return cols;
+}
+int KinectPlayback::get_height()
+{
+  return rows;
+}

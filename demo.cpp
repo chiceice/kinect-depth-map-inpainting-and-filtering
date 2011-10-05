@@ -7,9 +7,9 @@
 
 #include <utility>
 
-#define SIZEXY 2
-#define SIZET  0
-#define SIGMAXY 15
+#define SIZEXY 3
+#define SIZET  1
+#define SIGMAXY 2
 #define SIGMAT  1
 #define SIGMAC  10
 #define SIGMAD  0
@@ -21,12 +21,12 @@ void help()
          "./demo\n"
          "    -n <node file name> : to use an ni node recording.\n"
          "    -v <rgb file name> <depth file name> : to use 2 video files.\n"
-         "    -d : to use the kinect device.\n");
+         "    -d : to use the kinect device.\n"
+         "    -o <out_filename> : to save the output to the given video file. \n");
 }
 
 int main(int argc, char* argv[])
 {
-  float alpha=ALPHA;
   KinectPlayback playback = KinectPlayback();
   if (argc < 2)
   {
@@ -34,26 +34,28 @@ int main(int argc, char* argv[])
     return -1;
   }
 
-  if(argv[1][0] == '-')
-  {
-    switch (argv[1][1]) {
-      case 'n':
-        playback.init(argv[2]);
-        break;
-      case 'v':
-        playback.init(argv[2], argv[3]);
-        break;
-      case 'd':
-        playback.init();
-        break;
-      default:
-        help();
-        return -1;
+  const char* output_filename = 0;
+  for (int i = 0; i < argc; i++) {
+    if(argv[i][0] == '-')
+    {
+      switch (argv[i][1]) {
+        case 'n':
+          playback.init(argv[++i]);
+          break;
+        case 'v':
+          playback.init(argv[++i], argv[++i]);
+          break;
+        case 'd':
+          playback.init();
+          break;
+        case 'o':
+          output_filename = argv[++i];
+          break;
+        default:
+          help();
+          return -1;
+      }
     }
-  }
-  else {
-    help();
-    return -1;
   }
 
   int prev_frame_num = 2;
@@ -63,12 +65,18 @@ int main(int argc, char* argv[])
     playback.update();
     Mat inpainted_depth;
     Mat invalid_mask = (playback.depth == 0);
-    inpaint(playback.depth, invalid_mask, inpainted_depth, 5, alpha);
+    inpaint(playback.depth, invalid_mask, inpainted_depth, 5, (float)ALPHA);
     filter.update(playback.rgb, inpainted_depth);
   }
 
   printf("Filter initalized.\n");
 
+  VideoWriter writer;
+  if(output_filename)
+  {
+    writer.open(output_filename, CV_FOURCC('M','J','P','G'), playback.get_fps(),
+                Size(playback.get_width(), playback.get_height()));
+  }
   
   //MedianFilter filter = MedianFilter(7, .3);
   while (playback.update() && waitKey(1) != 27) {
@@ -76,7 +84,7 @@ int main(int argc, char* argv[])
     printf("Inpainting...\n");
     Mat inpainted_depth;
     Mat invalid_mask = (playback.depth == 0);
-    inpaint(playback.depth, invalid_mask, inpainted_depth, 5, alpha);
+    inpaint(playback.depth, invalid_mask, inpainted_depth, 5, (float)ALPHA);
     printf("Filtering...\n");
     Mat filtered_depth = filter.update(playback.rgb, inpainted_depth);
 
@@ -92,6 +100,10 @@ int main(int argc, char* argv[])
     imshow("depth", out_img);
     imshow("inpaint", inpainted_out_img);
     imshow("filtered", filtered_out_img);
+    
+    if (writer.isOpened()) {
+      writer << filtered_out_img;
+    }
   }
   return 1;
 }

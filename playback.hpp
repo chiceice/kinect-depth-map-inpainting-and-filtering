@@ -44,6 +44,11 @@ public:
   // Init from kinect node.
   void init(const char* node_filename);
   
+  // Get underlying parameters.
+  int get_fps();
+  int get_width();
+  int get_height();
+  
   // Get next image and place it into the Mats.
   // Returns true if new image available.
   bool update();

@@ -220,8 +220,6 @@ void BilinearFilter::updateBuffers(const Mat& rgb, const Mat& depth)
   copyTo(rgb_border, rgb_to);
   
   depth_to = depth_buf(rangesupdate);
-  if(depth_to.type() == depth_buf.type())
-    printf("types match\n");
   copyTo(depth_border, depth_to);
   
 }
