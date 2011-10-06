@@ -7,13 +7,14 @@
 
 #include <utility>
 
-#define SIZEXY 3
-#define SIZET  1
-#define SIGMAXY 2
+#define SIZEXY 7
+#define SIZET  0
+#define SIGMAXY 5
 #define SIGMAT  1
 #define SIGMAC  10
 #define SIGMAD  0
-#define ALPHA 0.25
+#define ALPHA 0.5
+#define BETA  .5
 
 void help()
 {
@@ -60,16 +61,18 @@ int main(int argc, char* argv[])
 
   int prev_frame_num = 2;
   //Init filter
-  BilinearFilter filter = BilinearFilter(SIZEXY, SIZET, SIGMAXY, SIGMAT, SIGMAD, SIGMAC);
+  BilinearFilter filter_bil = BilinearFilter(SIZEXY, SIZET, SIGMAXY, SIGMAT, SIGMAD, SIGMAC);
   for (int i = 0; i < SIZET; i++) {
     playback.update();
     Mat inpainted_depth;
     Mat invalid_mask = (playback.depth == 0);
     inpaint(playback.depth, invalid_mask, inpainted_depth, 5, (float)ALPHA);
-    filter.update(playback.rgb, inpainted_depth);
+    filter_bil.update(playback.rgb, inpainted_depth);
   }
+  
+  MedianFilter filter_med = MedianFilter(SIZEXY, BETA);
 
-  printf("Filter initalized.\n");
+  printf("Filters initalized.\n");
 
   VideoWriter writer;
   if(output_filename)
@@ -84,26 +87,31 @@ int main(int argc, char* argv[])
     //printf("Inpainting...\n");
     Mat inpainted_depth;
     Mat invalid_mask = (playback.depth == 0);
-    //inpaint(playback.depth, invalid_mask, inpainted_depth, 5, (float)ALPHA);
-    printf("Filtering...\n");
-    //Mat filtered_depth = filter.update(playback.rgb, inpainted_depth);
-
+    inpaint(playback.depth, invalid_mask, inpainted_depth, 5, (float)ALPHA);
+    printf("Filtering Bilinear...\n");
+    Mat filtered_bil_depth = filter_bil.update(playback.rgb, inpainted_depth);
+    filtered_bil_depth = filter_bil.update(playback.rgb, filtered_bil_depth);
+    printf("Filtering Median...\n");
+    Mat filtered_med_depth = filter_med.update(playback.rgb, inpainted_depth);
+    filtered_med_depth = filter_med.update(playback.rgb, filtered_med_depth);
+    
     printf("Visualizing...\n");
-    Mat out_img, inpainted_out_img, filtered_out_img;
+    Mat out_img, inpainted_out_img, filtered_bil_img, filtered_med_img;
 
     visualize(playback.depth, out_img);
-    inpaint(playback.depth, invalid_mask, inpainted_depth, 5, (float)ALPHA);
     visualize(inpainted_depth, inpainted_out_img);
-    //visualize(filtered_depth, filtered_out_img);
-
+    visualize(filtered_bil_depth, filtered_bil_img);
+    visualize(filtered_med_depth, filtered_med_img);
+    
     printf("Done...\n");
     imshow("rgb", playback.rgb);
     imshow("depth", out_img);
     imshow("inpaint", inpainted_out_img);
-    //imshow("filtered", filtered_out_img);
+    imshow("filtered bilinear", filtered_bil_img);
+    imshow("filtered median", filtered_med_img);
     waitKey(0);
     if (writer.isOpened()) {
-      writer << filtered_out_img;
+      writer << filtered_bil_img;
     }
   }
   return 1;
