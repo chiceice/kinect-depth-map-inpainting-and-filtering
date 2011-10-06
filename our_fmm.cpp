@@ -1,12 +1,11 @@
 #include "our_fmm.hpp"
 
-float FastMarching_solve(int i1,int j1,int i2,int j2, const CvMat* f, const CvMat* t, int* maxdepth)
+float FastMarching_solve(int i1,int j1,int i2,int j2, const CvMat* f, const CvMat* t)
 {
     double sol, a11, a22, m12;
     a11=CV_MAT_ELEM(*t,float,i1,j1);
     a22=CV_MAT_ELEM(*t,float,i2,j2);
     m12=MIN(a11,a22);
-    *maxdepth=m12;
 
     if( CV_MAT_ELEM(*f,uchar,i1,j1) != INSIDE )
         if( CV_MAT_ELEM(*f,uchar,i2,j2) != INSIDE )
@@ -24,72 +23,8 @@ float FastMarching_solve(int i1,int j1,int i2,int j2, const CvMat* f, const CvMa
     return (float)sol;
 }
 
-static void icvCalcFMM(const CvMat *depth, const CvMat *f, CvMat *t, CvPriorityQueueFloat *Heap, float alpha) {
-    int i, j, ii = 0, jj = 0, q;
-    int depth1=0,depth2=0,depth3=0,depth4=0,win=0;
-    int* maxdepth1=&depth1,*maxdepth2=&depth2,*maxdepth3=&depth3,*maxdepth4=&depth4;
-    int* winner=&win;
-    int depthtosubtract1=0,depthtosubtract2=0;
-    float dist;
-
-    while (Heap->Pop(&ii,&jj)) {
-
-        unsigned known=CHANGE;
-        CV_MAT_ELEM(*f,unsigned short int,ii,jj) = (unsigned short int)known;
-
-        for (q=0; q<4; q++) {
-            i=0; j=0;
-            if     (q==0) {i=ii-1; j=jj;}
-            else if(q==1) {i=ii;   j=jj-1;}
-            else if(q==2) {i=ii+1; j=jj;}
-            else {i=ii;   j=jj+1;}
-            if ((i<=0)||(j<=0)||(i>f->rows)||(j>f->cols)) continue;
-
-
-            if (CV_MAT_ELEM(*f,unsigned short int,i,j)==INSIDE) {
-                dist = min4(FastMarching_solve(i-1,j,i,j-1,f,t,maxdepth1),
-                            FastMarching_solve(i+1,j,i,j-1,f,t,maxdepth2),
-                            FastMarching_solve(i-1,j,i,j+1,f,t,maxdepth3),
-                            FastMarching_solve(i+1,j,i,j+1,f,t,maxdepth4),winner);
-                if(*winner==1){
-                    depthtosubtract1= CV_MAT_ELEM(*depth,unsigned short int,i-1,j);
-                    depthtosubtract2= CV_MAT_ELEM(*depth,unsigned short int,i,j-1);
-                }else if(*winner==2){
-                    depthtosubtract1= CV_MAT_ELEM(*depth,unsigned short int,i+1,j);
-                    depthtosubtract2= CV_MAT_ELEM(*depth,unsigned short int,i,j-1);
-                }else if(*winner==3){
-                    depthtosubtract1= CV_MAT_ELEM(*depth,unsigned short int,i-1,j);
-                    depthtosubtract2= CV_MAT_ELEM(*depth,unsigned short int,i,j+1);
-                }else{
-                    depthtosubtract1= CV_MAT_ELEM(*depth,unsigned short int,i+1,j);
-                    depthtosubtract2= CV_MAT_ELEM(*depth,unsigned short int,i,j+1);
-                }
-
-                if(depthtosubtract1<depthtosubtract2)
-                    depthtosubtract1=depthtosubtract2;
-
-                CV_MAT_ELEM(*t,float,i,j) = dist;
-                CV_MAT_ELEM(*f,unsigned short int,i,j) = BAND;
-                Heap->Push(i,j,alpha*dist-(1-alpha)*depthtosubtract1);
-            }
-        }
-    }
-
-    for (i=0; i<f->rows; i++) {
-        for(j=0; j<f->cols; j++) {
-            if (CV_MAT_ELEM(*f,unsigned short int,i,j) == CHANGE) {
-               CV_MAT_ELEM(*f,unsigned short int,i,j) = KNOWN;
-               CV_MAT_ELEM(*t,float,i,j) = -CV_MAT_ELEM(*t,float,i,j);
-            }
-        }
-    }
-}
-
-
-static void icvTeleaInpaintFMM(const CvMat *depth, const CvMat *f, CvMat *t, CvMat *out, int range, CvPriorityQueueFloat *Heap, float alpha ) {
-    int i = 0, j = 0, ii = 0, jj = 0, k, l, q;
-    int depth1=0,depth2=0,depth3=0,depth4=0,win=0;
-    int* maxdepth1=&depth1,*maxdepth2=&depth2,*maxdepth3=&depth3,*maxdepth4=&depth4;
+static void icvTeleaInpaintFMM(CvMat *depth, const CvMat *f, CvMat *t, CvMat *out, int range, CvPriorityQueueFloat *Heap, float alpha ) {
+    int i = 0, j = 0, ii = 0, jj = 0, k, l, q, win=0,last=0;
     int* winner=&win;
     float dist;
     unsigned short int depthtosubtract1=0,depthtosubtract2=0;
@@ -99,7 +34,6 @@ static void icvTeleaInpaintFMM(const CvMat *depth, const CvMat *f, CvMat *t, CvM
         CV_MAT_ELEM(*f,uchar,ii,jj) = KNOWN;
 
         for(q=0; q<4; q++) {
-
 
             if     (q==0) {i=ii-1; j=jj;}
             else if(q==1) {i=ii;   j=jj-1;}
@@ -111,27 +45,32 @@ static void icvTeleaInpaintFMM(const CvMat *depth, const CvMat *f, CvMat *t, CvM
 
             if (CV_MAT_ELEM(*f,uchar,i,j)==INSIDE) {
 
-                dist = min4(FastMarching_solve(i-1,j,i,j-1,f,t,maxdepth1),
-                            FastMarching_solve(i+1,j,i,j-1,f,t,maxdepth2),
-                            FastMarching_solve(i-1,j,i,j+1,f,t,maxdepth3),
-                            FastMarching_solve(i+1,j,i,j+1,f,t,maxdepth4),winner);
+                dist = min4(FastMarching_solve(i-1,j,i,j-1,f,t),
+                            FastMarching_solve(i+1,j,i,j-1,f,t),
+                            FastMarching_solve(i-1,j,i,j+1,f,t),
+                            FastMarching_solve(i+1,j,i,j+1,f,t),winner);
 
                 if(*winner==1){
-                    depthtosubtract1= CV_MAT_ELEM(*depth,unsigned short int,i-1,j);
-                    depthtosubtract2= CV_MAT_ELEM(*depth,unsigned short int,i,j-1);
+                    depthtosubtract1=CV_MAT_ELEM(*depth,unsigned short int,i-1,j);
+                    depthtosubtract2=CV_MAT_ELEM(*depth,unsigned short int,i,j-1);
                 }else if(*winner==2){
-                    depthtosubtract1= CV_MAT_ELEM(*depth,unsigned short int,i+1,j);
-                    depthtosubtract2= CV_MAT_ELEM(*depth,unsigned short int,i,j-1);
+                    depthtosubtract1=CV_MAT_ELEM(*depth,unsigned short int,i+1,j);
+                    depthtosubtract2=CV_MAT_ELEM(*depth,unsigned short int,i,j-1);
                 }else if(*winner==3){
-                    depthtosubtract1= CV_MAT_ELEM(*depth,unsigned short int,i-1,j);
-                    depthtosubtract2= CV_MAT_ELEM(*depth,unsigned short int,i,j+1);
-
+                    depthtosubtract1=CV_MAT_ELEM(*depth,unsigned short int,i-1,j);
+                    depthtosubtract2=CV_MAT_ELEM(*depth,unsigned short int,i,j+1);
                 }else{
-                    depthtosubtract1= CV_MAT_ELEM(*depth,unsigned short int,i+1,j);
-                    depthtosubtract2= CV_MAT_ELEM(*depth,unsigned short int,i,j+1);
+                    depthtosubtract1=CV_MAT_ELEM(*depth,unsigned short int,i+1,j);
+                    depthtosubtract2=CV_MAT_ELEM(*depth,unsigned short int,i,j+1);
                 }
+
                 if(depthtosubtract1<depthtosubtract2)
                     depthtosubtract1=depthtosubtract2;
+
+                if(depthtosubtract1==0)
+                    depthtosubtract1=last;
+                else
+                    last=depthtosubtract1;
 
                 CV_MAT_ELEM(*t,float,i,j) = dist;
 
@@ -220,8 +159,9 @@ static void icvTeleaInpaintFMM(const CvMat *depth, const CvMat *f, CvMat *t, CvM
                 sat = (float)((Ia/s+(Jx+Jy)/(sqrt(Jx*Jx+Jy*Jy)+1.0e-20f)+0.5f));
                 int isat = cvRound(sat);
                 CV_MAT_ELEM(*out,unsigned short int,i-1,j-1) = CV_CAST_16U(isat);
+                CV_MAT_ELEM(*depth,unsigned short int,i-1,j-1) = CV_CAST_16U(isat);
                 CV_MAT_ELEM(*f,uchar,i,j) = BAND;
-                Heap->Push(i,j,alpha*dist-(1-alpha)*depthtosubtract1);
+                Heap->Push(i,j,alpha*dist+(1-alpha)*(200*(65536-(float)depthtosubtract1))/65536);
             }
         }
     }
@@ -291,9 +231,7 @@ void teleainpaint(const CvArr* _input_img, const CvArr* _inpaint_mask, CvArr* _o
     cvSet(t,cvScalar(0,0,0,0),band);
 
     el_range = cvCreateStructuringElementEx(2*range+1,2*range+1,range,range,CV_SHAPE_RECT,NULL);
-
     cvDilate(mask16,out,el_range,1);
-
     cvSub(out,mask16,out,NULL);
 
     Out=new CvPriorityQueueFloat;
@@ -304,8 +242,6 @@ void teleainpaint(const CvArr* _input_img, const CvArr* _inpaint_mask, CvArr* _o
 
     cvSub(out,band,out,NULL);
     SET_BORDER1_C1(out,unsigned short int,0);
-
-    icvCalcFMM(depth,out,t,Out,alpha);
 
     icvTeleaInpaintFMM(depth,mask,t,output_img,range,Heap,alpha);
 }

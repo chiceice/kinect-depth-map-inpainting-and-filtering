@@ -13,7 +13,7 @@
 #define SIGMAT  1
 #define SIGMAC  10
 #define SIGMAD  0
-#define ALPHA 0.95
+#define ALPHA 0.25
 
 void help()
 {
@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
     writer.open(output_filename, CV_FOURCC('M','J','P','G'), playback.get_fps(),
                 Size(playback.get_width(), playback.get_height()));
   }
-  
+
   //MedianFilter filter = MedianFilter(7, .3);
   while (playback.update() && waitKey(1) != 27) {
     //Passing Previous frame buffer
@@ -92,14 +92,14 @@ int main(int argc, char* argv[])
     Mat out_img, inpainted_out_img, filtered_out_img;
 
     visualize(playback.depth, out_img);
-    inpaint(out_img, invalid_mask, inpainted_depth, 5, INPAINT_TELEA); 
+    inpaint(playback.depth, invalid_mask, inpainted_depth, 5, (float)ALPHA);
     visualize(inpainted_depth, inpainted_out_img);
     //visualize(filtered_depth, filtered_out_img);
 
     printf("Done...\n");
     imshow("rgb", playback.rgb);
     imshow("depth", out_img);
-    imshow("inpaint", inpainted_depth);
+    imshow("inpaint", inpainted_out_img);
     //imshow("filtered", filtered_out_img);
     waitKey(0);
     if (writer.isOpened()) {
