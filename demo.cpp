@@ -11,8 +11,8 @@
 #define SIZET  0
 #define SIGMAXY 5
 #define SIGMAT  1
-#define SIGMAC  10
-#define SIGMAD  0
+#define SIGMAC  0
+#define SIGMAD  500
 #define ALPHA 0.5
 #define BETA  .5
 
